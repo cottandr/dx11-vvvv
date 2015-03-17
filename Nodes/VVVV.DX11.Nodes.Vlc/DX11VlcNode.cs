@@ -17,6 +17,8 @@ using SlimDX;
 using VVVV.DX11;
 using VVVV.DX11.Vlc.Player;
 
+using VVVV.Core.Logging;
+
 
 
 namespace VVVV.Nodes.VideoPlayer
@@ -25,6 +27,9 @@ namespace VVVV.Nodes.VideoPlayer
     public class VLCNodeSPR : IPluginEvaluate, IDisposable, IDX11ResourceProvider
     {
         #region Fields
+        [Import()]
+        ILogger FLogger;
+
         private IPluginHost FHost;
 
         private IValueIn FPinInPlay;
@@ -38,6 +43,7 @@ namespace VVVV.Nodes.VideoPlayer
         private IStringIn FPinInPath;
 
         private IValueOut FPinOutFPS;
+        private IValueOut FPinOutCurrentFrame;
         private IValueOut FPinOutPosition;
         private IValueOut FPinOutDuration;
         private IValueOut FPinOutValid;
@@ -88,6 +94,9 @@ namespace VVVV.Nodes.VideoPlayer
             this.FHost.CreateValueOutput("Frame Rate", 1, null, TSliceMode.Dynamic, TPinVisibility.True, out this.FPinOutFPS);
             this.FPinOutFPS.SetSubType(double.MinValue, double.MaxValue, 0.01, 0, false, false, false);
 
+            this.FHost.CreateValueOutput("Current Frame", 1, null, TSliceMode.Dynamic, TPinVisibility.True, out this.FPinOutCurrentFrame);
+            this.FPinOutCurrentFrame.SetSubType(double.MinValue, double.MaxValue, 0.01, 0, false, false, true);
+
             this.FHost.CreateValueOutput("Position", 1, null, TSliceMode.Dynamic, TPinVisibility.True, out this.FPinOutPosition);
             this.FPinOutPosition.SetSubType(double.MinValue, double.MaxValue, 0.01, 0, false, false, false);
 
@@ -109,6 +118,7 @@ namespace VVVV.Nodes.VideoPlayer
         #region Evaluate
         public void Evaluate(int SpreadMax)
         {
+            FLogger.Log(LogType.Debug, "Eval");
             for (int i = 0; i < SpreadMax; i++)
             {
                 string path;
@@ -129,8 +139,10 @@ namespace VVVV.Nodes.VideoPlayer
                     {
                         if (path != this.players[i].FileName)
                         {
+#if false
                             this.players[i].Stop();
                             this.players[i].Dispose();
+#endif
                             //this.players[i].DestroyDevice();
                             needreset = true;
                         }
@@ -151,7 +163,9 @@ namespace VVVV.Nodes.VideoPlayer
                         }
                         else
                         {
+#if false
                             this.players[i] = new VlcPlayer();
+#endif
                         }
 
                         this.players[i].SetFileName(path);
@@ -172,10 +186,8 @@ namespace VVVV.Nodes.VideoPlayer
                             //Just set a null here
                             this.players[i] = null;
                         }
-
                     }
                 }
-
             }
 
             if (this.players.Count > SpreadMax)
@@ -250,6 +262,7 @@ namespace VVVV.Nodes.VideoPlayer
                         VlcPlayer v = this.players[i];
                         v.GetStatus();
                         this.FPinOutFPS.SetValue(i, v.Fps);
+                        this.FPinOutCurrentFrame.SetValue(i, v.CurrentFrame);
                         this.FPinOutDuration.SetValue(i, v.Duration);
                         this.FPinOutPosition.SetValue(i, v.Position);
                         this.FPinOutValid.SetValue(i, Convert.ToDouble(v.IsValid));
@@ -313,6 +326,9 @@ namespace VVVV.Nodes.VideoPlayer
 
         public void Update(IPluginIO pin, DX11RenderContext context)
         {
+
+            FLogger.Log(LogType.Debug, "Update");
+#if true
             Stopwatch w = Stopwatch.StartNew();
 
             int cnt = 0;
@@ -321,7 +337,7 @@ namespace VVVV.Nodes.VideoPlayer
 
                 if (vlc != null)
                 {
-                    if (vlc.IsValid)
+                    if (vlc.IsValid && !vlc.loading_media)
                     {
                         DX11DynamicTexture2D t;
                         if (!this.FTextureOut[cnt].Contains(context))
@@ -363,7 +379,7 @@ namespace VVVV.Nodes.VideoPlayer
                     }
                     else
                     {
-                        this.FTextureOut[cnt].Dispose(context);
+                        //this.FTextureOut[cnt].Dispose(context);
                     }
                 }
                 cnt++;
@@ -371,6 +387,7 @@ namespace VVVV.Nodes.VideoPlayer
 
             w.Stop();
             this.FPinOutCopyTime.SetValue(0, w.ElapsedMilliseconds);
+#endif
         }
 
         public void Destroy(IPluginIO pin, DX11RenderContext context, bool force)
